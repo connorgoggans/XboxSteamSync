@@ -152,7 +152,9 @@ and `TESTED_VERSIONS` in `xboxsteamsync/sisr.py`.
 keeping their Steam app ids, so artwork, collection membership and playtime carry over.
 `config.json` and `art_state.json` are copied from the old folder.
 
-## Third-party software
+## License
 
-XboxSteamSync doesn't include SISR, VIIPER or usbip-win2; they're downloaded from their own
-projects at setup time under their own licenses.
+XboxSteamSync is released into the public domain under [the Unlicense](LICENSE).
+
+It doesn't include SISR, VIIPER or usbip-win2; they're downloaded from their own projects at
+setup time under their own licenses.
