@@ -1,4 +1,8 @@
-"""Read and write the Steam files we touch: shortcuts.vdf, localconfig.vdf, collections."""
+"""Read and write the Steam files we touch: shortcuts.vdf, localconfig.vdf, collections.
+
+Functions that edit a file take `write`; with write=False they only report whether
+anything would change, so callers can avoid restarting Steam for nothing.
+"""
 
 import base64
 import json
@@ -14,19 +18,37 @@ from pathlib import Path
 import psutil
 import vdf
 
+
+class SteamNotFound(Exception):
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Install / users / process control
 # ---------------------------------------------------------------------------
 
 
 def steam_dir() -> Path:
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
-        return Path(winreg.QueryValueEx(key, "SteamPath")[0])
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Valve\Steam") as key:
+            path = Path(winreg.QueryValueEx(key, "SteamPath")[0])
+    except OSError:
+        raise SteamNotFound("Steam is not installed (no SteamPath in the registry)") from None
+    if not (path / "steam.exe").exists():
+        raise SteamNotFound(f"Steam is registered at {path}, but steam.exe isn't there")
+    return path
 
 
 def user_config_dirs(steam: Path):
-    """config/ dirs for every account that has logged into this Steam install."""
-    users = vdf.load(open(steam / "config" / "loginusers.vdf", encoding="utf-8"))["users"]
+    """config/ dirs for every account that has logged into this Steam install.
+
+    Empty when nobody has signed in yet (no loginusers.vdf or userdata).
+    """
+    login_users = steam / "config" / "loginusers.vdf"
+    if not login_users.exists():
+        return []
+    with open(login_users, encoding="utf-8") as f:
+        users = vdf.load(f).get("users", {})
     dirs = []
     for steamid64 in users:
         account_id = int(steamid64) & 0xFFFFFFFF
@@ -34,6 +56,10 @@ def user_config_dirs(steam: Path):
         if cfg.is_dir():
             dirs.append(cfg)
     return dirs
+
+
+NO_USERS_MESSAGE = ("Steam is installed, but nobody has signed in to it on this PC yet.\n"
+                    "Start Steam, sign in, then run this again.")
 
 
 def _steam_procs():
@@ -65,9 +91,14 @@ def start(steam: Path):
 _MAP, _STR, _INT, _END = 0x00, 0x01, 0x02, 0x08
 
 
+# surrogateescape keeps bytes that aren't valid UTF-8 intact through a round trip.
 def _read_cstr(buf, i):
     end = buf.index(b"\x00", i)
-    return buf[i:end].decode("utf-8", errors="replace"), end + 1
+    return buf[i:end].decode("utf-8", errors="surrogateescape"), end + 1
+
+
+def _cstr(s):
+    return str(s).encode("utf-8", errors="surrogateescape") + b"\x00"
 
 
 def _read_map(buf, i):
@@ -92,27 +123,42 @@ def _read_map(buf, i):
 def _write_map(d):
     out = bytearray()
     for key, val in d.items():
-        k = key.encode("utf-8") + b"\x00"
+        k = _cstr(key)
         if isinstance(val, dict):
             out += bytes([_MAP]) + k + _write_map(val)
         elif isinstance(val, int):
             out += bytes([_INT]) + k + struct.pack("<i", val)
         else:
-            out += bytes([_STR]) + k + str(val).encode("utf-8") + b"\x00"
+            out += bytes([_STR]) + k + _cstr(val)
     return out + bytes([_END])
+
+
+def parse_shortcuts(data: bytes):
+    parsed, _ = _read_map(data, 0)
+    return list(parsed.get("shortcuts", {}).values())
+
+
+def encode_shortcuts(shortcuts) -> bytes:
+    return bytes(_write_map({"shortcuts": {str(i): s for i, s in enumerate(shortcuts)}}))
 
 
 def load_shortcuts(cfg: Path):
     path = cfg / "shortcuts.vdf"
-    if not path.exists():
-        return []
-    data, _ = _read_map(path.read_bytes(), 0)
-    return list(data.get("shortcuts", {}).values())
+    return parse_shortcuts(path.read_bytes()) if path.exists() else []
 
 
-def save_shortcuts(cfg: Path, shortcuts):
-    body = {"shortcuts": {str(i): s for i, s in enumerate(shortcuts)}}
-    (cfg / "shortcuts.vdf").write_bytes(bytes(_write_map(body)))
+def save_shortcuts(cfg: Path, shortcuts, write=True) -> bool:
+    """Write shortcuts.vdf if its contents would change. Returns whether they did."""
+    path = cfg / "shortcuts.vdf"
+    new = encode_shortcuts(shortcuts)
+    old = path.read_bytes() if path.exists() else encode_shortcuts([])
+    if new == old:
+        return False
+    if write:
+        tmp = path.with_suffix(".vdf.tmp")
+        tmp.write_bytes(new)
+        os.replace(tmp, path)
+    return True
 
 
 def shortcut_appid(exe: str, name: str) -> int:
@@ -158,28 +204,38 @@ def new_shortcut(appid, name, exe, start_dir, launch_options, icon=""):
 STEAM_INPUT_ENABLED = "2"
 
 
-def set_steam_input(cfg: Path, enable_appids, clear_appids):
+def set_steam_input(cfg: Path, enable_appids, clear_appids, write=True) -> bool:
+    """Force Steam Input on for `enable_appids` and forget `clear_appids`. Returns
+    whether localconfig.vdf changed (or would)."""
     path = cfg / "localconfig.vdf"
     if not path.exists():
-        return
-    data = vdf.load(open(path, encoding="utf-8"), mapper=vdf.VDFDict)
+        return False
+    with open(path, encoding="utf-8") as f:
+        data = vdf.load(f, mapper=vdf.VDFDict)
     store = data["UserLocalConfigStore"]
     if "apps" not in store:
         store["apps"] = vdf.VDFDict()
     apps = store["apps"]
+    changed = False
     for appid in clear_appids:
         key = str(appid)
         if key in apps:
             del apps[key]
+            changed = True
     for appid in enable_appids:
         key = str(appid)
         if key not in apps:
             apps[key] = vdf.VDFDict()
         entry = apps[key]
+        if entry.get("UseSteamControllerConfig") == STEAM_INPUT_ENABLED:
+            continue
         if "UseSteamControllerConfig" in entry:
             del entry["UseSteamControllerConfig"]
         entry["UseSteamControllerConfig"] = STEAM_INPUT_ENABLED
-    _atomic_write(path, vdf.dumps(data, pretty=True))
+        changed = True
+    if changed and write:
+        _atomic_write(path, vdf.dumps(data, pretty=True))
+    return changed
 
 
 # ---------------------------------------------------------------------------
@@ -187,25 +243,26 @@ def set_steam_input(cfg: Path, enable_appids, clear_appids):
 # ---------------------------------------------------------------------------
 
 
-def sync_collection(cfg: Path, name, member_appids, removed_appids):
-    """Create/update a user collection named `name`.
+def _collection_paths(cfg: Path):
+    cloud = cfg / "cloudstorage"
+    return (cloud / "cloud-storage-namespace-1.json",
+            cloud / "cloud-storage-namespaces.json",
+            cloud / "cloud-storage-namespace-1.modified.json")
+
+
+def has_collections_file(cfg: Path) -> bool:
+    return _collection_paths(cfg)[0].exists()
+
+
+def update_collection(entries, namespaces, modified, name, member_appids, removed_appids,
+                      delete_if_empty=False):
+    """Apply a collection change to the parsed cloud-storage JSON, in place.
 
     Adds `member_appids` and drops `removed_appids`, leaving any other games the user
     put in the collection by hand. Bumps the namespace version and flags the key as
     modified so Steam uploads our change instead of overwriting it from the cloud.
+    Returns (changed, namespaces).
     """
-    cloud = cfg / "cloudstorage"
-    ns_path = cloud / "cloud-storage-namespace-1.json"
-    namespaces_path = cloud / "cloud-storage-namespaces.json"
-    modified_path = cloud / "cloud-storage-namespace-1.modified.json"
-    if not ns_path.exists():
-        print(f"  ! {ns_path} not found; open Steam's library once, then re-run")
-        return
-
-    entries = json.loads(ns_path.read_text(encoding="utf-8"))
-    namespaces = json.loads(namespaces_path.read_text(encoding="utf-8")) if namespaces_path.exists() else []
-    modified = json.loads(modified_path.read_text(encoding="utf-8")) if modified_path.exists() else []
-
     entry = collection = None
     for key, e in entries:
         if not key.startswith("user-collections.") or e.get("is_deleted") or "value" not in e:
@@ -216,33 +273,61 @@ def sync_collection(cfg: Path, name, member_appids, removed_appids):
             break
 
     if collection is None:
+        if not member_appids:
+            return False, namespaces
         cid = "uc-" + base64.b64encode(secrets.token_bytes(9)).decode()
         collection = {"id": cid, "name": name, "added": [], "removed": []}
         entry = {"key": f"user-collections.{cid}"}
         entries.append([entry["key"], entry])
 
     removed = set(removed_appids)
+    members = set(member_appids)
     added = [a for a in collection.get("added", []) if a not in removed]
     added += [a for a in member_appids if a not in added]
-    if added == collection.get("added") and "version" in entry:
-        return
-    collection["added"] = added
-    collection["removed"] = [a for a in collection.get("removed", []) if a not in set(member_appids)]
+    excluded = [a for a in collection.get("removed", []) if a not in members]
+    delete = delete_if_empty and not added
+    if (not delete and added == collection.get("added") and excluded == collection.get("removed", [])
+            and "version" in entry):
+        return False, namespaces
 
     ns_version = next((int(v) for n, v in namespaces if n == 1), 0)
     max_entry_version = max((int(e.get("version", 0)) for _, e in entries), default=0)
     version = max(ns_version, max_entry_version) + 1
     entry["timestamp"] = int(time.time())
-    entry["value"] = json.dumps(collection, separators=(",", ":"))
     entry["version"] = str(version)
+    if delete:
+        entry.pop("value", None)
+        entry["is_deleted"] = True
+    else:
+        collection["added"] = added
+        collection["removed"] = excluded
+        entry["value"] = json.dumps(collection, separators=(",", ":"))
 
     namespaces = [[n, v] for n, v in namespaces if n != 1] + [[1, str(version)]]
     if entry["key"] not in modified:
         modified.append(entry["key"])
+    return True, namespaces
 
-    _atomic_write(ns_path, json.dumps(entries, separators=(",", ":")))
-    _atomic_write(namespaces_path, json.dumps(namespaces, separators=(",", ":")))
-    _atomic_write(modified_path, json.dumps(modified, separators=(",", ":")))
+
+def sync_collection(cfg: Path, name, member_appids, removed_appids, write=True,
+                    delete_if_empty=False) -> bool:
+    """Create/update the user collection `name` on disk (see update_collection).
+    Returns whether it changed (or would)."""
+    ns_path, namespaces_path, modified_path = _collection_paths(cfg)
+    if not ns_path.exists():
+        return False
+
+    def load(p):
+        return json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+
+    entries, modified = load(ns_path), load(modified_path)
+    changed, namespaces = update_collection(entries, load(namespaces_path), modified, name,
+                                            member_appids, removed_appids, delete_if_empty)
+    if changed and write:
+        _atomic_write(ns_path, json.dumps(entries, separators=(",", ":")))
+        _atomic_write(namespaces_path, json.dumps(namespaces, separators=(",", ":")))
+        _atomic_write(modified_path, json.dumps(modified, separators=(",", ":")))
+    return changed
 
 
 def _atomic_write(path: Path, text: str):

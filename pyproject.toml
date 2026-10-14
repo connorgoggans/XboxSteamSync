@@ -1,0 +1,33 @@
+[project]
+name = "xboxsteamsync"
+dynamic = ["version"]
+description = "Add Xbox app games to Steam as non-Steam shortcuts with Steam Input support"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pillow",
+    "psutil",
+    "vdf",
+]
+
+[project.scripts]
+xss = "xboxsteamsync.cli:main"
+
+[project.gui-scripts]
+xss-launch = "xboxsteamsync.launcher:main"
+
+[dependency-groups]
+dev = [
+    "pyinstaller",
+    "pytest",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "xboxsteamsync/__init__.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

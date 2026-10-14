@@ -1,0 +1,29 @@
+Usage: SISR <command> [flags]
+
+SISR - Steam Input System Redirector
+
+    Version: v0.6.2 (5cfde20)
+             2026-10-11T00:08:44Z
+    Source:  https://github.com/Alia5/SISR
+    License: GPLv3
+
+Flags:
+  -h, --help                Show context-sensitive help.
+      --config=STRING       Path to configuration file (json|yaml|toml)
+                            ($SISR_CONFIG)
+      --log.level="info"    Log level: trace, debug, info, warn, error
+                            ($SISR_LOG_LEVEL)
+      --log.file=STRING     Log file path ($SISR_LOG_FILE)
+      --console             Show console window ($SISR_CONSOLE)
+
+Commands:
+  run [flags]
+    Run SISR (Default)
+
+  checkrates [flags]
+    Measure Steam Input polling rate
+
+  inputmon [flags]
+    Log gamepad input changes to console
+
+Run "SISR <command> --help" for more information on a command.

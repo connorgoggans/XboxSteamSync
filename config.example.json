@@ -1,5 +1,5 @@
 {
-  "xbox_games_dir": "C:\\XboxGames",
+  "xbox_games_dirs": [],
   "collection_name": "Xbox",
   "steamgriddb_api_key": "",
   "exclude": [],

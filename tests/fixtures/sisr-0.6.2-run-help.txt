@@ -1,0 +1,67 @@
+Usage: SISR run [flags]
+
+Run SISR (Default)
+
+Flags:
+  -h, --help                       Show context-sensitive help.
+      --config=STRING              Path to configuration file (json|yaml|toml)
+                                   ($SISR_CONFIG)
+      --log.level="info"           Log level: trace, debug, info, warn, error
+                                   ($SISR_LOG_LEVEL)
+      --log.file=STRING            Log file path ($SISR_LOG_FILE)
+      --console                    Show console window ($SISR_CONSOLE)
+
+      --update-notify="stable"     Update notification level
+                                   ($SISR_UPDATE_NOTIFY)
+      --no-steam                   Run in no-Steam mode ($SISR_NO_STEAM)
+      --default-controller-type="xbox360"
+                                   Default controller type for emulation
+                                   ($SISR_DEFAULT_CONTROLLER_TYPE)
+      --gyro-passthrough           Enable gyro passthrough for supported
+                                   controllers ($SISR_GYRO_PASSTHROUGH)
+      --touchpad-passthrough       Enable touchpad passthrough for supported
+                                   controllers ($SISR_TOUCHPAD_PASSTHROUGH)
+      --back-button-passthrough    Enable back button passthrough for
+                                   supported controllers (e.g. DualSense Edge)
+                                   ($SISR_BACK_BUTTON_PASSTHROUGH)
+      --allow-steam-desktop-layout
+                                   Allow/Use Steam's desktop
+                                   configuration for emulated controllers
+                                   ($SISR_ALLOW_STEAM_DESKTOP_LAYOUT)
+      --immediate-sensor-updates
+                                   Immediately send sensor updates to VIIPER
+                                   instead of waiting for the next input report;
+                                   may reduce latency at the cost of increased
+                                   CPU usage ($SISR_IMMEDIATE_SENSOR_UPDATES)
+      --keyboard-mouse-emulation
+                                   Forward Keyboard/Mouse when running over a
+                                   network ($SISR_KBM_EMULATION)
+      --api.listen-address="localhost:0"
+                                   API listen address; by default will pick
+                                   random free port and listen on localhost only
+                                   ($SISR_API_LISTEN_ADDRESS)
+      --api.cors-origins="https://steamloopback.host,http://steamloopback.host"
+                                   CORS allowed origins ($SISR_API_CORS_ORIGINS)
+      --viiper.address="localhost:3242"
+                                   VIIPER server address ($SISR_VIIPER_ADDRESS)
+      --viiper.password=STRING     VIIPER server password
+                                   ($SISR_VIIPER_PASSWORD)
+      --window.max-fps=60          Maximim FPS for SteamOverlay/UI (Does not
+                                   affect inputs) ($SISR_MAX_FPS)
+      --window.fullscreen          Fullscreen overlay ($SISR_FULLSCREEN)
+      --window.show                Shows window on startup; when used w/
+                                   fullscreen=true: will enable Steam Overlay;
+                                   when used with fullscreen=false: will show
+                                   UI; when false SISR will only show up in
+                                   system tray ($SISR_SHOW_WINDOW)
+      --steam.install-dir=STRING
+                                   Steam installation directory (optional,
+                                   will attempt to auto-detect if not set)
+                                   ($SISR_STEAM_INSTALL_DIR)
+      --steam.user-id=UINT-32      Active Steam user ID (optional,
+                                   will attempt to auto-detect if not set)
+                                   ($SISR_STEAM_USER_ID)
+      --steam.cef-remote-debug-port=UINT-16
+                                   CEF remote debugging port (optional,
+                                   will attempt to auto-detect if not set)
+                                   ($SISR_STEAM_CEF_REMOTE_DEBUG_PORT)

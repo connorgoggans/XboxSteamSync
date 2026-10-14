@@ -10,8 +10,10 @@ isn't in the process tree Steam launched). Instead this wrapper:
   3. stays alive while the game runs, so Steam keeps this shortcut's config active;
   4. closes SISR when the game exits.
 
-Usage: launcher.py --aumid <PFN!AppId> --dir <dir> [--dir <dir>...] [--exe <name>...]
-                   [--sisr <SISR.exe> [--sisr-arg <arg>...]]
+Usage: xss-launch --aumid <PFN!AppId> --dir <dir> [--dir <dir>...] [--exe <name>...]
+
+SISR's path and arguments come from config.json at launch time, so changing them
+doesn't need a re-sync.
 """
 
 import argparse
@@ -25,12 +27,15 @@ from pathlib import Path
 
 import psutil
 
+from xboxsteamsync import paths
+from xboxsteamsync.config import load_config
+
 STARTUP_TIMEOUT = 180  # seconds to wait for the game to appear
 HANDOFF_GRACE = 15     # seconds with no game process before we consider it exited
 SISR_WARMUP = 3        # seconds for SISR to create its virtual controller before the game starts
 POLL_INTERVAL = 2
 
-LOG_PATH = Path(__file__).resolve().parent / "logs" / "launcher.log"
+LOG_PATH = paths.LOG_DIR / "launcher.log"
 
 
 def _game_running(prefixes, exe_names):
@@ -111,24 +116,28 @@ def main():
     parser.add_argument("--aumid", required=True)
     parser.add_argument("--dir", action="append", default=[], help="install dir(s) the game's processes run from")
     parser.add_argument("--exe", action="append", default=[], help="game executable name(s)")
-    parser.add_argument("--sisr", help="path to SISR.exe")
-    parser.add_argument("--sisr-arg", action="append", default=[])
     args = parser.parse_args()
 
-    LOG_PATH.parent.mkdir(exist_ok=True)
+    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=LOG_PATH, level=logging.INFO, encoding="utf-8",
                         format="%(asctime)s [%(process)d] %(message)s")
     log = logging.getLogger()
     log.info("launch %s", args.aumid)
+    try:
+        cfg = load_config()
+    except Exception as e:  # a broken config.json shouldn't stop the game from starting
+        log.error("could not read %s: %s; using defaults", paths.CONFIG_PATH, e)
+        cfg = load_config(read_file=False)
+    sisr_path, sisr_args = cfg["sisr_path"], cfg["sisr_args"]
 
     prefixes = tuple(os.path.normcase(os.path.abspath(d)).rstrip("\\") + "\\" for d in args.dir if d)
     exe_names = {e.lower() for e in args.exe}
 
     sisr = None
-    if args.sisr and Path(args.sisr).exists():
+    if sisr_path and Path(sisr_path).exists():
         sisr_log = LOG_PATH.with_name("sisr.log")
-        sisr = subprocess.Popen([args.sisr, *args.sisr_arg, f"--log.file={sisr_log}"])
-        log.info("started SISR pid=%s args=%s", sisr.pid, args.sisr_arg)
+        sisr = subprocess.Popen([sisr_path, *sisr_args, f"--log.file={sisr_log}"])
+        log.info("started SISR pid=%s args=%s", sisr.pid, sisr_args)
         try:
             sisr_job = _kill_with_us(sisr)  # noqa: F841 - keeps the job handle open
         except OSError as e:
@@ -137,8 +146,8 @@ def main():
         if sisr.poll() is not None:
             log.error("SISR exited early with code %s (80 = bad arguments); see %s", sisr.returncode, sisr_log)
             sisr = None
-    elif args.sisr:
-        log.warning("SISR not found at %s; continuing without it", args.sisr)
+    elif sisr_path:
+        log.warning("SISR not found at %s; continuing without it (run `xss doctor`)", sisr_path)
 
     try:
         subprocess.Popen(["explorer.exe", f"shell:AppsFolder\\{args.aumid}"])
