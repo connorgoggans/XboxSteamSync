@@ -57,7 +57,7 @@ function Install-XboxSteamSync {
         if (-not $exe) { throw "xss.exe not found in $Zip" }
 
         New-Item -ItemType Directory -Path $root -Force | Out-Null
-        $old = "$app.old"
+        $old = Join-Path $root "app.old"
         if (Test-Path $old) { Remove-Item -Recurse -Force $old }
         if (Test-Path $app) { Rename-Item -Path $app -NewName (Split-Path $old -Leaf) }
         try {

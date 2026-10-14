@@ -4,7 +4,7 @@ import struct
 import pytest
 
 from conftest import FIXTURES
-from xboxsteamsync.xbox_games import find_games, parse_gaming_root, read_game_config
+from xboxsteamsync.xbox_games import find_games, kept_reason, parse_gaming_root, read_game_config
 
 CONFIGS = FIXTURES / "configs"
 
@@ -73,3 +73,24 @@ def test_unregistered_package_is_skipped(tmp_path, capsys):
     _install(tmp_path, "Ball X Pit", "game.config")
     assert find_games([tmp_path], families={}) == []
     assert "not registered" in capsys.readouterr().out
+
+
+def test_unreadable_config_is_skipped(tmp_path, capsys):
+    content = tmp_path / "Broken" / "Content"
+    content.mkdir(parents=True)
+    (content / "MicrosoftGame.config").write_text("<Game", encoding="utf-8")
+    assert find_games([tmp_path], families={}) == []
+    assert "couldn't read" in capsys.readouterr().out
+
+
+def test_kept_reason(tmp_path):
+    _install(tmp_path, "Ball X Pit", "game.config")
+    content = tmp_path / "Ball X Pit" / "Content"
+    assert "still installed" in kept_reason(content)
+    assert kept_reason(content, exclude=["DevolverDigital.BallxPit"]) is None
+    assert kept_reason(content, exclude=["ball x pit"]) is None
+    assert "isn't available" in kept_reason(tmp_path / "Offline" / "Game" / "Content")
+    (content / "MicrosoftGame.config").write_text("<Game", encoding="utf-8")
+    assert "couldn't be read" in kept_reason(content)
+    shutil.rmtree(tmp_path / "Ball X Pit")
+    assert kept_reason(content) is None  # uninstalled

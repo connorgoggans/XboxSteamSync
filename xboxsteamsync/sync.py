@@ -1,7 +1,8 @@
 """Sync installed Xbox app games into Steam as non-Steam shortcuts in an "Xbox" collection.
 
-Re-running is safe: shortcuts for games that are no longer installed are removed,
-and only shortcuts this tool created are ever touched. Steam is only closed and
+Re-running is safe: shortcuts for games that are no longer installed are removed
+(but not when detection may have missed them, see kept_reason), and only shortcuts
+this tool created are ever touched. Steam is only closed and
 restarted when something actually changes.
 """
 
@@ -15,9 +16,10 @@ from pathlib import Path
 from xboxsteamsync import artwork, paths, steam, update
 from xboxsteamsync.config import load_config
 from xboxsteamsync.games import game_input_mode
-from xboxsteamsync.xbox_games import find_games, gaming_roots
+from xboxsteamsync.xbox_games import find_games, gaming_roots, kept_reason
 
 AUMID_RE = re.compile(r"--aumid (\S+)")
+DIR_RE = re.compile(r'--dir (?:"([^"]*)"|(\S+))')
 LEGACY_LAUNCHER_RE = re.compile(r'^"?(.+?launcher\.py)"? ')
 BACKUP_FILES = [
     "shortcuts.vdf",
@@ -43,6 +45,21 @@ def is_managed(shortcut):
 def managed_aumid(shortcut):
     m = AUMID_RE.search(shortcut.get("LaunchOptions", ""))
     return m.group(1) if m and is_managed(shortcut) else None
+
+
+def shortcut_dirs(shortcut):
+    """The --dir folders in a shortcut's launch options (the Content folder first)."""
+    return [Path(a or b) for a, b in DIR_RE.findall(shortcut.get("LaunchOptions", ""))]
+
+
+def xbox_kept_reason(roots, exclude):
+    """For plan_user: why an Xbox shortcut whose game wasn't found should stay."""
+    def reason(shortcut):
+        if not roots:
+            return "no Xbox install folders were found"
+        dirs = shortcut_dirs(shortcut)
+        return kept_reason(dirs[0], exclude) if dirs else None
+    return reason
 
 
 def launch_options(game):
@@ -73,14 +90,16 @@ class UserPlan:
     added_names: list = field(default_factory=list)
     removed_names: list = field(default_factory=list)
     migrated_names: list = field(default_factory=list)
+    kept_names: list = field(default_factory=list)  # (name, reason) of missing games left in place
     changed: bool = False
 
 
-def plan_user(user_cfg: Path, games, cfg, launcher: Path, art=None) -> UserPlan:
+def plan_user(user_cfg: Path, games, cfg, launcher: Path, art=None, keep_missing=None) -> UserPlan:
     """Work out the new shortcut list for one Steam user, without writing Steam files.
 
     `art` is (ArtState, SteamGridDB or None, steamgriddb_ids) to fetch missing artwork;
-    None only looks up art that is already there.
+    None only looks up art that is already there. `keep_missing(shortcut)` returns why a
+    shortcut whose game wasn't found should stay as it is, or None to remove it.
     """
     shortcuts = steam.load_shortcuts(user_cfg)
     grid_dir = user_cfg / "grid"
@@ -96,7 +115,13 @@ def plan_user(user_cfg: Path, games, cfg, launcher: Path, art=None) -> UserPlan:
     plan = UserPlan(user_cfg, [s for s in shortcuts if not managed_aumid(s)], [], [])
 
     for aumid, s in existing.items():
-        if aumid not in wanted:
+        if aumid in wanted:
+            continue
+        if keep_missing and (reason := keep_missing(s)):
+            plan.shortcuts.append(s)
+            plan.kept.append(steam.to_unsigned(s["appid"]))
+            plan.kept_names.append((s["AppName"], reason))
+        else:
             plan.removed.append(steam.to_unsigned(s["appid"]))
             plan.removed_names.append(s["AppName"])
 
@@ -166,6 +191,8 @@ def _print_plan(plan: UserPlan):
         print(f"  - {name}")
     for name in plan.migrated_names:
         print(f"  ~ {name} (moved to {paths.LAUNCHER_NAME})")
+    for name, reason in plan.kept_names:
+        print(f"  ? {name}: not found, but kept because {reason}")
     if not steam.has_collections_file(plan.user_cfg):
         print("  ! Steam's collections file isn't there yet; open the Steam library once, then sync again")
     if not plan.changed:
@@ -199,8 +226,9 @@ def run_sync(dry_run=False, restart_steam=False) -> int:
     roots = [Path(d) for d in cfg["xbox_games_dirs"]] or gaming_roots()
     if not roots:
         print("No Xbox install folders found. Install a game with the Xbox app, or set xbox_games_dirs "
-              f"in {paths.CONFIG_PATH}.")
+              f"in {paths.CONFIG_PATH}. Existing Xbox shortcuts are left as they are.")
     games = find_games(roots, cfg["exclude"])
+    keep_missing = xbox_kept_reason(roots, cfg["exclude"])
     print(f"Found {len(games)} installed Xbox games in {', '.join(map(str, roots)) or 'no folders'}:")
     for g in games:
         print(f"  {g.name}  [{g.aumid}]  input: {game_input_mode(cfg, g)}")
@@ -214,7 +242,7 @@ def run_sync(dry_run=False, restart_steam=False) -> int:
     plans = []
     for user_cfg in user_cfgs:
         print(f"\nSteam user {user_cfg.parent.name}:")
-        plan = plan_user(user_cfg, games, cfg, launcher, art)
+        plan = plan_user(user_cfg, games, cfg, launcher, art, keep_missing)
         _print_plan(plan)
         plans.append(plan)
 
@@ -239,7 +267,7 @@ def run_sync(dry_run=False, restart_steam=False) -> int:
         print("\nClosing Steam...")
         steam.shutdown(steam_path)
         # Steam rewrites its files on exit, so plan again against what it left behind.
-        plans = [plan_user(p.user_cfg, games, cfg, launcher) for p in plans]
+        plans = [plan_user(p.user_cfg, games, cfg, launcher, keep_missing=keep_missing) for p in plans]
 
     backup_root = paths.BACKUP_DIR / time.strftime("%Y%m%d-%H%M%S")
     for plan in plans:

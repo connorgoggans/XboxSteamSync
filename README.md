@@ -5,6 +5,11 @@ called **Xbox**, and makes Steam Input work in them. Run it again after installi
 removing games: new games are added and uninstalled ones are removed. It only ever touches
 shortcuts it created.
 
+A game is only removed once its files are gone. If a game is still on disk but can't be
+detected (for example while the Xbox app repairs it, or when its drive is disconnected),
+`xss sync` keeps its shortcut and says why. If no Xbox install folders are found at all, no
+shortcuts are removed.
+
 Steam can't apply Steam Input to games started through the Xbox app, so each shortcut starts
 [SISR](https://github.com/Alia5/SISR) (Steam Input System Redirector), which turns your
 controller's Steam Input layout into a virtual Xbox controller that the game sees.

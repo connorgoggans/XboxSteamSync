@@ -13,6 +13,8 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter, ImageOps
 
+from xboxsteamsync.xbox_games import strip_ns
+
 API = "https://www.steamgriddb.com/api/v2"
 
 # (endpoint, query, filename suffix) -> saved as <appid><suffix>.<ext> in config/grid
@@ -101,7 +103,11 @@ def _remove_art(grid_dir: Path, appid: int, suffix: str):
 
 
 def _local_assets(content_dir: Path):
-    cfg = ET.parse(content_dir / "MicrosoftGame.config").getroot()
+    config_path = content_dir / "MicrosoftGame.config"
+    if not config_path.exists():
+        return None, None
+    # GDK configs may declare an xmlns, which would hide <ShellVisuals> from find().
+    cfg = strip_ns(ET.parse(config_path).getroot())
     visuals = cfg.find("ShellVisuals")
     if visuals is None:
         return None, None

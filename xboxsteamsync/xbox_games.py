@@ -73,7 +73,7 @@ def gaming_roots():
 # ---------------------------------------------------------------------------
 
 
-def _strip_ns(root):
+def strip_ns(root):
     for el in root.iter():
         if "}" in el.tag:
             el.tag = el.tag.split("}", 1)[1]
@@ -87,7 +87,7 @@ def read_game_config(config_path: Path):
     A package is a full game when it declares an <ExecutableList>. DLC declares no
     executables and points at its parent via <MainPackageDependency>.
     """
-    cfg = _strip_ns(ET.parse(config_path).getroot())
+    cfg = strip_ns(ET.parse(config_path).getroot())
     if cfg.find("./ExecutableList/Executable") is None:
         return None
     if cfg.find("./DesktopRegistration/MainPackageDependency") is not None:
@@ -119,7 +119,7 @@ def _app_id(content_dir: Path, game_config):
     """The Appx <Application Id>, falling back to the first Executable's Id, then 'Game'."""
     manifest = content_dir / "appxmanifest.xml"
     if manifest.exists():
-        app = _strip_ns(ET.parse(manifest).getroot()).find("./Applications/Application")
+        app = strip_ns(ET.parse(manifest).getroot()).find("./Applications/Application")
         if app is not None and app.get("Id"):
             return app.get("Id")
     exe = game_config.find("./ExecutableList/Executable")
@@ -135,18 +135,51 @@ def candidate_folders(root: Path):
             yield folder, config_path
 
 
+def is_excluded(exclude, folder, identity, name):
+    return bool({folder.lower(), identity.lower(), name.lower()} & {e.lower() for e in exclude})
+
+
+def kept_reason(content_dir: Path, exclude=()):
+    """Why a game that find_games didn't return should keep its shortcut, or None if it's
+    really gone (its config was deleted, or it's in `exclude`).
+
+    Detection can miss a game that's still installed: its package may not be registered
+    with Windows (e.g. while the Xbox app repairs it), its config may be unreadable, or
+    its drive may be disconnected.
+    """
+    root = content_dir.parent.parent
+    if not root.is_dir():
+        return f"{root} isn't available"
+    config_path = content_dir / "MicrosoftGame.config"
+    if not config_path.exists():
+        return None
+    try:
+        info = read_game_config(config_path)
+    except Exception:
+        return "its MicrosoftGame.config couldn't be read"
+    if info is None:
+        return None
+    folder = content_dir.parent.name
+    if is_excluded(exclude, folder, info.identity, info.name or folder):
+        return None
+    return "it's still installed, but wasn't detected"
+
+
 def find_games(roots, exclude=(), families=None):
     """Return full games (not DLC, saves, or other content) installed under `roots`."""
-    exclude = {e.lower() for e in exclude}
     families = _installed_package_families() if families is None else families
     games, seen = [], set()
     for root in roots:
         for folder, config_path in candidate_folders(root):
-            info = read_game_config(config_path)
+            try:
+                info = read_game_config(config_path)
+            except Exception as e:
+                print(f"  ! {folder.name}: couldn't read {config_path.name} ({e}), skipping")
+                continue
             if info is None:
                 continue
             name = info.name or folder.name
-            if {folder.name.lower(), info.identity.lower(), name.lower()} & exclude:
+            if is_excluded(exclude, folder.name, info.identity, name):
                 continue
             family, install_dir = families.get(info.identity.lower(), (None, None))
             if not family:
