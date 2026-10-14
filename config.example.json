@@ -1,0 +1,9 @@
+{
+  "xbox_games_dir": "C:\\XboxGames",
+  "collection_name": "Xbox",
+  "steamgriddb_api_key": "",
+  "exclude": [],
+  "steamgriddb_ids": {},
+  "sisr_path": "%LOCALAPPDATA%\\SISR\\SISR.exe",
+  "sisr_args": ["--window.show", "--window.fullscreen"]
+}
