@@ -1,0 +1,20 @@
+{
+	"FormatVersion": 0,
+	"bIsIncompleteInstall": false,
+	"LaunchCommand": "",
+	"LaunchExecutable": "redprelauncher.exe",
+	"DisplayName": "Cyberpunk 2077",
+	"InstallLocation": "C:\\Program Files\\Epic Games\\Cyberpunk2077",
+	"AppName": "Ginger",
+	"AppVersionString": "2.31_hotfix",
+	"MainGameAppName": "",
+	"CatalogNamespace": "77f2b98e2cef40c8a7437518bf420e47",
+	"CatalogItemId": "5beededaad9743df90e8f07d92df153f",
+	"AppCategories": [
+		"public",
+		"games",
+		"applications"
+	],
+	"bIsExecutable": true,
+	"bIsApplication": true
+}

@@ -1,0 +1,19 @@
+{
+	"FormatVersion": 0,
+	"bIsIncompleteInstall": false,
+	"LaunchCommand": "",
+	"LaunchExecutable": "",
+	"DisplayName": "Cyberpunk 2077 - REDmod",
+	"InstallLocation": "C:\\Program Files\\Epic Games\\Cyberpunk2077",
+	"AppName": "02855a2f4c044aa1a813b19f8c447fe1",
+	"AppVersionString": "2.31_hotfix_RedMod",
+	"MainGameAppName": "Ginger",
+	"CatalogNamespace": "77f2b98e2cef40c8a7437518bf420e47",
+	"CatalogItemId": "563d27afe4544a648a0c222d73dedd84",
+	"AppCategories": [
+		"digitalextras",
+		"applications"
+	],
+	"bIsExecutable": true,
+	"bIsApplication": true
+}

@@ -4,7 +4,7 @@ import struct
 import pytest
 
 from conftest import FIXTURES
-from xboxsteamsync.xbox_games import find_games, kept_reason, parse_gaming_root, read_game_config
+from xboxsteamsync.sources.xbox import find_games, kept_reason, parse_gaming_root, read_game_config
 
 CONFIGS = FIXTURES / "configs"
 

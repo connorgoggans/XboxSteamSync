@@ -1,3 +1,3 @@
 """Sync games installed by the Xbox app into Steam, with Steam Input via SISR."""
 
-__version__ = "0.4.1"
+__version__ = "0.5.0"

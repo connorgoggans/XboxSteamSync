@@ -4,7 +4,7 @@ import pytest
 
 from xboxsteamsync.config import DEFAULT_CONFIG, game_entry, input_mode
 from xboxsteamsync.games import invalid_settings, match_games, set_input, unknown_settings
-from xboxsteamsync.xbox_games import XboxGame
+from xboxsteamsync.sources.xbox import XboxGame
 
 AOM = ("Age of Mythology- Retold Standard Edition", "Microsoft.AthensStandardEdition", "Age of Mythology: Retold")
 

@@ -7,5 +7,7 @@
   "sisr_path": "%LOCALAPPDATA%\\SISR\\SISR.exe",
   "sisr_args": ["--window.show", "--window.fullscreen"],
   "games": {},
-  "auto_update": true
+  "auto_update": true,
+  "sources": {"xbox": true, "epic": true, "battlenet": true},
+  "collections": {"epic": "Epic Games", "battlenet": "Battle.net"}
 }

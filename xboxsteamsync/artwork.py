@@ -1,9 +1,11 @@
-"""Steam library artwork for shortcuts: SteamGridDB first, then the Xbox package's own art.
+"""Steam library artwork for shortcuts: SteamGridDB first, then the game's own art (the
+Xbox package's images, or the key art Epic and Battle.net show for it).
 
-Art generated from local Xbox assets is recorded in a state file so that a later run
+Art generated from the game's own images is recorded in a state file so that a later run
 with a SteamGridDB key can upgrade it. Art the user set themselves is never replaced.
 """
 
+import io
 import json
 import re
 import urllib.parse
@@ -13,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image, ImageFilter, ImageOps
 
-from xboxsteamsync.xbox_games import strip_ns
+from xboxsteamsync.sources.xbox import strip_ns
 
 API = "https://www.steamgriddb.com/api/v2"
 
@@ -62,7 +64,7 @@ class SteamGridDB:
 
 
 class ArtState:
-    """Tracks which grid files were generated from local Xbox assets (upgradeable)."""
+    """Tracks which grid files were generated from the game's own images (upgradeable)."""
 
     def __init__(self, path: Path):
         self.path = path
@@ -98,7 +100,7 @@ def _remove_art(grid_dir: Path, appid: int, suffix: str):
 
 
 # ---------------------------------------------------------------------------
-# Local Xbox assets
+# The game's own images
 # ---------------------------------------------------------------------------
 
 
@@ -132,28 +134,70 @@ def _portrait(splash, size=(600, 900)):
     return bg
 
 
-def _local_art(content_dir: Path, suffix: str):
-    splash_path, logo_path = _local_assets(content_dir)
-    if suffix == "_icon" and logo_path:
-        return Image.open(logo_path).convert("RGBA")
-    if not splash_path:
+class LocalImages:
+    """The game's own images, opened (or downloaded) once each when first needed.
+
+    `local` is a Game's `art`: {"config": <Xbox Content dir>}, or image paths/URLs under
+    "wide" (key art, any shape), "tall" (portrait box art), "logo" and "icon". A bare Path
+    means an Xbox Content dir.
+    """
+
+    def __init__(self, local):
+        if isinstance(local, Path):
+            local = {"config": local}
+        local = dict(local or {})
+        if local.get("config"):
+            local["wide"], local["icon"] = _local_assets(Path(local.pop("config")))
+        self.sources = local
+        self.cache = {}
+
+    def get(self, kind):
+        if kind not in self.cache:
+            src = self.sources.get(kind)
+            self.cache[kind] = None  # a failed download is reported once, not for every kind
+            self.cache[kind] = _open_image(src) if src else None
+        return self.cache[kind]
+
+
+def _open_image(src):
+    if str(src).startswith(("http://", "https://")):
+        req = urllib.request.Request(str(src), headers={"User-Agent": "XboxSteamSync"})
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            src = io.BytesIO(resp.read())
+    img = Image.open(src)
+    img.load()
+    return img
+
+
+def _local_art(images: LocalImages, suffix: str):
+    if suffix == "_icon":
+        icon = images.get("icon")
+        return icon.convert("RGBA") if icon else None
+    if suffix == "_logo":
+        logo = images.get("logo")  # only a transparent logo; the key art already shows the title
+        return logo.convert("RGBA") if logo else None
+    if suffix == "p" and (tall := images.get("tall")):
+        return _cover(tall.convert("RGB"), (600, 900))
+    wide = images.get("wide")
+    if not wide:
         return None
-    splash = Image.open(splash_path).convert("RGB")
+    wide = wide.convert("RGB")
     if suffix == "p":
-        return _portrait(splash)
+        return _portrait(wide)
     if suffix == "":
-        return _cover(splash, (920, 430))
+        return _cover(wide, (920, 430))
     if suffix == "_hero":
-        return _cover(splash, (1920, 620))
-    return None  # no transparent logo available locally; the splash already shows the title
+        return _cover(wide, (1920, 620))
+    return None
 
 
 # ---------------------------------------------------------------------------
 
 
-def ensure_art(grid_dir: Path, appid: int, name: str, content_dir: Path, state: ArtState,
+def ensure_art(grid_dir: Path, appid: int, name: str, local, state: ArtState,
                sgdb: SteamGridDB = None, sgdb_id=None):
-    """Fill in missing art for `appid`. Returns the icon path (or None)."""
+    """Fill in missing art for `appid`; `local` is the game's own art (see LocalImages).
+    Returns the icon path (or None)."""
     grid_dir.mkdir(parents=True, exist_ok=True)
     # Missing, or generated locally on an earlier run and worth upgrading.
     todo = [k for k in ART_KINDS
@@ -163,7 +207,7 @@ def ensure_art(grid_dir: Path, appid: int, name: str, content_dir: Path, state: 
         try:
             game_id = sgdb_id or sgdb.find_game_id(name)
             if not game_id:
-                print(f"    no SteamGridDB match for '{name}', using local Xbox art")
+                print(f"    no SteamGridDB match for '{name}', using the game's own art")
             for endpoint, params, suffix in (todo if game_id else []):
                 url = sgdb.image_url(endpoint, game_id, params)
                 if not url:
@@ -173,13 +217,14 @@ def ensure_art(grid_dir: Path, appid: int, name: str, content_dir: Path, state: 
                 sgdb.download(url, grid_dir / f"{appid}{suffix}{ext}")
                 state.set_local(grid_dir, appid, suffix, False)
         except Exception as e:  # art is best-effort; never fail the sync over it
-            print(f"    SteamGridDB error for '{name}': {e}; using local Xbox art")
+            print(f"    SteamGridDB error for '{name}': {e}; using the game's own art")
 
+    images = LocalImages(local)
     for _, _, suffix in ART_KINDS:
         if existing_art(grid_dir, appid, suffix):
             continue
         try:
-            img = _local_art(content_dir, suffix)
+            img = _local_art(images, suffix)
         except Exception as e:
             print(f"    local art error for '{name}': {e}")
             img = None

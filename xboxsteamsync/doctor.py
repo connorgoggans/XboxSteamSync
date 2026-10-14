@@ -4,10 +4,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from xboxsteamsync import __version__, paths, sisr, steam, update
-from xboxsteamsync.config import load_config
-from xboxsteamsync.games import game_input_mode, invalid_settings, unknown_settings
-from xboxsteamsync.sync import is_legacy, managed_aumid
-from xboxsteamsync.xbox_games import find_games, gaming_roots
+from xboxsteamsync.config import load_config, source_state
+from xboxsteamsync.games import game_input_mode, installed_games, invalid_settings, unknown_settings
+from xboxsteamsync.sources import LABELS, detect, included
+from xboxsteamsync.sources.xbox import find_games, install_roots
+from xboxsteamsync.sync import is_legacy, managed_key
 
 OK, WARN, FAIL = "ok", "warn", "FAIL"
 _MARK = {OK: "[ ok ]", WARN: "[warn]", FAIL: "[FAIL]"}
@@ -48,7 +49,7 @@ def _check_steam():
     launcher = str(paths.launcher_exe()).lower()
     for user_cfg in users:
         for s in steam.load_shortcuts(user_cfg):
-            if not managed_aumid(s):
+            if not managed_key(s):
                 continue
             if is_legacy(s):
                 legacy += 1
@@ -121,7 +122,9 @@ def _check_usbip():
 
 
 def _check_xbox(cfg):
-    roots = [Path(d) for d in cfg["xbox_games_dirs"]] or gaming_roots()
+    if not source_state(cfg, "xbox"):
+        return [Check("Xbox games", OK, "turned off (`xss sources xbox --on` turns them back on)")]
+    roots = install_roots(cfg)
     if not roots:
         return [Check("Xbox install folders", FAIL, "none found (no .GamingRoot on any drive)",
                       "Install a game with the Xbox app")]
@@ -132,8 +135,36 @@ def _check_xbox(cfg):
         return checks + [Check("Xbox games", FAIL, f"couldn't list games: {e}")]
     lines = [f"{g.name}  ({game_input_mode(cfg, g)})" for g in sorted(games, key=lambda g: g.name.lower())]
     checks.append(Check("Xbox games", OK if games else WARN, f"{len(games)} installed", lines=lines))
+    return checks
+
+
+def _check_launcher(cfg, source):
+    """Epic Games / Battle.net: launcher found, its data readable, its games."""
+    label, state = LABELS[source], source_state(cfg, source)
+    d = detect(source, cfg)
+    if not d.found:
+        return [Check(label, OK, "not installed")]
+    if d.error:
+        return [Check(label, WARN, d.error, "Open the launcher once, then run `xss doctor` again")]
+    games = included(d.games, cfg["exclude"])
+    where = f" ({d.detail})" if d.detail else ""
+    if state is None:
+        return [Check(label, WARN if games else OK, f"{len(games)} installed{where}; not turned on or off yet",
+                      "Run `xss sync` to choose, or `xss sources " + source + " --on|--off`")]
+    if not state:
+        return [Check(label, OK, f"turned off; {len(games)} installed")]
+    lines = [f"{g.name}  ({game_input_mode(cfg, g)})" for g in sorted(games, key=lambda g: g.name.lower())]
+    return [Check(label, OK, f"{len(games)} installed{where}", lines=lines)]
+
+
+def _check_settings(cfg):
+    try:
+        games = installed_games(cfg)
+    except Exception:
+        return []
     problems = [f"{k}: unknown input {v!r}" for k, v in invalid_settings(cfg).items()]
     problems += [f"{k}: no installed game matches it" for k in unknown_settings(cfg, games)]
+    checks = []
     if problems:
         checks.append(Check("Game settings", WARN, "; ".join(problems),
                             f"Fix `games` in {paths.CONFIG_PATH}, or use `xss game`"))
@@ -169,7 +200,8 @@ def collect():
         return [Check("config.json", FAIL, f"{paths.CONFIG_PATH}: {e}", "Fix or delete the file")]
     steam_checks, _ = _check_steam()
     return [*_check_version(cfg), *_check_install(), *steam_checks, *_check_sisr(cfg), *_check_viiper(), *_check_usbip(),
-            *_check_xbox(cfg)]
+            *_check_xbox(cfg), *_check_launcher(cfg, "epic"), *_check_launcher(cfg, "battlenet"),
+            *_check_settings(cfg)]
 
 
 def run_doctor() -> int:

@@ -9,18 +9,21 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from pathlib import Path
 
+from xboxsteamsync.sources import Detection, Game, is_excluded, shortcut_dirs
 from xboxsteamsync.winutil import POWERSHELL, powershell_env
 
 
-@dataclass
-class XboxGame:
-    folder: str          # directory name under the Xbox games root
-    name: str            # display name from MicrosoftGame.config
-    identity: str        # package identity name, e.g. BethesdaSoftworks.ProjectTitan
-    aumid: str           # PackageFamilyName!AppId, used to launch via shell:AppsFolder
-    content_dir: Path    # <root>/<folder>/Content
-    install_dir: str     # Appx InstallLocation (a WindowsApps junction to content_dir)
-    exes: list           # executable file names from the ExecutableList
+def XboxGame(folder, name, identity, aumid, content_dir, install_dir, exes):
+    """A Game for an Xbox app package.
+
+    folder: directory name under the Xbox games root; identity: package name, e.g.
+    BethesdaSoftworks.ProjectTitan; aumid: PackageFamilyName!AppId, launched through
+    shell:AppsFolder; content_dir: <root>/<folder>/Content; install_dir: Appx
+    InstallLocation (a WindowsApps junction to content_dir); exes: executable names from
+    the ExecutableList.
+    """
+    return Game(source="xbox", id=aumid, name=name, folder=folder, identity=identity,
+                dirs=[content_dir, install_dir], exes=exes, art={"config": content_dir})
 
 
 @dataclass
@@ -135,10 +138,6 @@ def candidate_folders(root: Path):
             yield folder, config_path
 
 
-def is_excluded(exclude, folder, identity, name):
-    return bool({folder.lower(), identity.lower(), name.lower()} & {e.lower() for e in exclude})
-
-
 def kept_reason(content_dir: Path, exclude=()):
     """Why a game that find_games didn't return should keep its shortcut, or None if it's
     really gone (its config was deleted, or it's in `exclude`).
@@ -163,6 +162,29 @@ def kept_reason(content_dir: Path, exclude=()):
     if is_excluded(exclude, folder, info.identity, info.name or folder):
         return None
     return "it's still installed, but wasn't detected"
+
+
+def install_roots(cfg):
+    return [Path(d) for d in cfg["xbox_games_dirs"]] or gaming_roots()
+
+
+def keep_missing(roots):
+    """Detection.keep_missing for Xbox shortcuts (see kept_reason)."""
+    def reason(shortcut, exclude):
+        if not roots:
+            return "no Xbox install folders were found"
+        dirs = shortcut_dirs(shortcut)
+        return kept_reason(dirs[0], exclude) if dirs else None
+    return reason
+
+
+def detect(cfg) -> Detection:
+    found = install_roots(cfg)
+    if not found:
+        return Detection("xbox", False, [], error="no Xbox install folders were found",
+                         keep_missing=keep_missing(found))
+    return Detection("xbox", True, find_games(found), detail=", ".join(map(str, found)),
+                     keep_missing=keep_missing(found))
 
 
 def find_games(roots, exclude=(), families=None):

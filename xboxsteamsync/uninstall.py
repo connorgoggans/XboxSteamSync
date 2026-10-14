@@ -6,18 +6,31 @@ import winreg
 
 from xboxsteamsync import artwork, paths, steam
 from xboxsteamsync.config import load_config
-from xboxsteamsync.sync import backup, managed_aumid
+from xboxsteamsync.sources import SOURCES, collection_name
+from xboxsteamsync.sync import backup, managed_key
 
 
-def _plan(user_cfg, collection_name):
+def _by_source(shortcuts):
+    return {source: [steam.to_unsigned(s["appid"]) for s in shortcuts if managed_key(s).startswith(source + ":")]
+            for source in SOURCES}
+
+
+def _sync_collections(user_cfg, cfg, ours, write=True):
+    changed = False
+    for source, appids in _by_source(ours).items():
+        changed |= steam.sync_collection(user_cfg, collection_name(cfg, source), [], appids, write=write,
+                                         delete_if_empty=True)
+    return changed
+
+
+def _plan(user_cfg, cfg):
     shortcuts = steam.load_shortcuts(user_cfg)
-    ours = [s for s in shortcuts if managed_aumid(s)]
-    keep = [s for s in shortcuts if not managed_aumid(s)]
+    ours = [s for s in shortcuts if managed_key(s)]
+    keep = [s for s in shortcuts if not managed_key(s)]
     appids = [steam.to_unsigned(s["appid"]) for s in ours]
     changed = (steam.save_shortcuts(user_cfg, keep, write=False)
                | steam.set_steam_input(user_cfg, [], appids, write=False)
-               | steam.sync_collection(user_cfg, collection_name, [], appids, write=False,
-                                       delete_if_empty=True))
+               | _sync_collections(user_cfg, cfg, ours, write=False))
     return ours, keep, appids, changed
 
 
@@ -50,7 +63,7 @@ def run_uninstall(dry_run=False, purge=False) -> int:
 
     plans = []
     for user_cfg in user_cfgs:
-        ours, keep, appids, changed = _plan(user_cfg, cfg["collection_name"])
+        ours, keep, appids, changed = _plan(user_cfg, cfg)
         print(f"Steam user {user_cfg.parent.name}: removing {len(ours)} shortcut(s)")
         for s in ours:
             print(f"  - {s['AppName']}")
@@ -69,13 +82,13 @@ def run_uninstall(dry_run=False, purge=False) -> int:
         backup_root = paths.BACKUP_DIR / (time.strftime("%Y%m%d-%H%M%S") + "-uninstall")
         for user_cfg, _, _ in plans:
             # Plan again: Steam rewrites its files on exit.
-            _, keep, appids, changed = _plan(user_cfg, cfg["collection_name"])
+            ours, keep, appids, changed = _plan(user_cfg, cfg)
             if not changed:
                 continue
             backup(user_cfg, backup_root / user_cfg.parent.name)
             steam.save_shortcuts(user_cfg, keep)
             steam.set_steam_input(user_cfg, [], appids)
-            steam.sync_collection(user_cfg, cfg["collection_name"], [], appids, delete_if_empty=True)
+            _sync_collections(user_cfg, cfg, ours)
             for appid in appids:
                 artwork.delete_art(user_cfg / "grid", appid, art_state)
         if not purge:

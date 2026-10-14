@@ -18,10 +18,38 @@ DEFAULT_CONFIG = {
     "games": {},
     # Check for a new release once a day and install it.
     "auto_update": True,
+    # Which launchers' games are added: {"xbox": true, "epic": true, "battlenet": false}.
+    # Written by the first sync/setup and `xss sources`; a launcher with no entry hasn't been
+    # decided yet (Xbox counts as on).
+    "sources": {},
+    # Collection names for the other launchers: {"epic": "...", "battlenet": "..."}.
+    "collections": {},
 }
 
 CONTROLLER, KEYBOARD_MOUSE = "controller", "keyboard-mouse"
 INPUT_MODES = (CONTROLLER, KEYBOARD_MOUSE)
+
+
+def load_raw(path=None):
+    """config.json exactly as written (no defaults), for editing it."""
+    path = path or paths.CONFIG_PATH
+    return json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
+
+
+def save_raw(raw, path=None):
+    path = path or paths.CONFIG_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(raw, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def source_state(cfg, source):
+    """True (on), False (off) or None (not decided yet) for a launcher."""
+    value = (cfg.get("sources") or {}).get(source)
+    if value is None:
+        return True if source == "xbox" else None
+    return bool(value)
 
 
 def load_config(path=None, read_file=True):

@@ -164,11 +164,11 @@ def run_setup(resume=False, assume_yes=False) -> int:
         return 0
 
     paths.SETUP_STATE_PATH.unlink(missing_ok=True)
-    print("\nSyncing Xbox games into Steam...\n")
-    code = run_sync(restart_steam=flag_was_missing)
+    print("\nSyncing games into Steam...\n")
+    code = run_sync(restart_steam=flag_was_missing, assume_yes=assume_yes)
     if code == 0:
-        print("\nSetup complete. Your Xbox games are in Steam's \"Xbox\" collection. "
-              "Run `xss sync` after installing or removing games.")
+        print("\nSetup complete. Your games are in Steam, in a collection per launcher (\"Xbox\", "
+              "\"Epic Games\", \"Battle.net\"). Run `xss sync` after installing or removing games.")
     return _finish(code, resume, assume_yes)
 
 

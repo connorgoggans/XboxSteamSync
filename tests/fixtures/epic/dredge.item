@@ -1,0 +1,19 @@
+{
+	"FormatVersion": 0,
+	"bIsIncompleteInstall": false,
+	"LaunchCommand": "",
+	"LaunchExecutable": "DREDGE.exe",
+	"DisplayName": "DREDGE",
+	"InstallLocation": "C:\\Program Files\\Epic Games\\DREDGEmKMzx",
+	"AppName": "65c25644a2e0444d8766967a008b1d69",
+	"AppVersionString": "prod-windows-2994.1",
+	"MainGameAppName": "",
+	"CatalogNamespace": "8b454b47f5544fc6829cf0fed42ebae0",
+	"CatalogItemId": "eac6533129434f98a6b04a81cbcaf357",
+	"AppCategories": [
+		"games",
+		"applications"
+	],
+	"bIsExecutable": true,
+	"bIsApplication": true
+}

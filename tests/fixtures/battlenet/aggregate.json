@@ -1,0 +1,24 @@
+{
+  "installed": [
+    {
+      "box_art_uri": "https://bnetxboxassets.akamaized.net/fenris/box-enUS.webp",
+      "icon_index": 0,
+      "icon_path": "C:/Program Files (x86)/Diablo IV/Diablo IV Launcher.exe",
+      "last_played_timestamp": 1791962181000,
+      "launch_uri": "battlenet://game/fenris",
+      "logo_art_uri": "https://bnetxboxassets.akamaized.net/fenris/logo-enUS.webp",
+      "name": "Diablo IV",
+      "product_id": "fenris"
+    },
+    {
+      "box_art_uri": "https://bnetxboxassets.akamaized.net/hero/box-enUS.webp",
+      "icon_index": 0,
+      "icon_path": "C:/Program Files (x86)/Heroes of the Storm/Heroes of the Storm.exe",
+      "last_played_timestamp": 1790048857000,
+      "launch_uri": "battlenet://game/hero",
+      "logo_art_uri": "https://bnetxboxassets.akamaized.net/hero/logo-enUS.webp",
+      "name": "Heroes of the Storm",
+      "product_id": "hero"
+    }
+  ]
+}

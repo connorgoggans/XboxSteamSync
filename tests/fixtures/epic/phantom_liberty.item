@@ -1,0 +1,18 @@
+{
+	"FormatVersion": 0,
+	"bIsIncompleteInstall": false,
+	"LaunchCommand": "",
+	"LaunchExecutable": "",
+	"DisplayName": "Cyberpunk 2077: Phantom Liberty",
+	"InstallLocation": "C:\\Program Files\\Epic Games\\Cyberpunk2077",
+	"AppName": "c7250f768ab74180895fd781cbc32921",
+	"AppVersionString": "2.31_hotfix_EP1",
+	"MainGameAppName": "Ginger",
+	"CatalogNamespace": "77f2b98e2cef40c8a7437518bf420e47",
+	"CatalogItemId": "44b40d9063c74eb99d7b417c39fbcb33",
+	"AppCategories": [
+		"addons"
+	],
+	"bIsExecutable": false,
+	"bIsApplication": false
+}
