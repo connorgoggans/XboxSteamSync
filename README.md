@@ -146,12 +146,6 @@ GitHub Actions and attaches it and `install.ps1` to a GitHub Release.
 To move to a new SISR release, test it, then update `INSTALL_VERSION`, `INSTALL_SCRIPT_SHA256`
 and `TESTED_VERSIONS` in `xboxsteamsync/sisr.py`.
 
-### Upgrading from the script version
-
-`xss sync` moves shortcuts that point at the old `launcher.py` over to `xss-launch.exe`,
-keeping their Steam app ids, so artwork, collection membership and playtime carry over.
-`config.json` and `art_state.json` are copied from the old folder.
-
 ## License
 
 XboxSteamSync is released into the public domain under [the Unlicense](LICENSE).
