@@ -6,5 +6,6 @@
   "steamgriddb_ids": {},
   "sisr_path": "%LOCALAPPDATA%\\SISR\\SISR.exe",
   "sisr_args": ["--window.show", "--window.fullscreen"],
-  "games": {}
+  "games": {},
+  "auto_update": true
 }

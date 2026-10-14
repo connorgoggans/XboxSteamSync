@@ -36,14 +36,22 @@ jobs:
       - name: Build
         run: uv run pyinstaller --noconfirm packaging/xss.spec
 
+      # install.ps1 goes inside the zip too: `xss update` runs that copy, which the
+      # zip's checksum covers.
       - name: Zip
         shell: pwsh
-        run: Compress-Archive -Path dist/XboxSteamSync -DestinationPath dist/XboxSteamSync-windows-x64.zip
+        run: |
+          Copy-Item install.ps1 dist/XboxSteamSync/
+          Compress-Archive -Path dist/XboxSteamSync -DestinationPath dist/XboxSteamSync-windows-x64.zip
+          $hash = (Get-FileHash -Algorithm SHA256 dist/XboxSteamSync-windows-x64.zip).Hash.ToLower()
+          Set-Content -Path dist/XboxSteamSync-windows-x64.zip.sha256 -Value "$hash  XboxSteamSync-windows-x64.zip" -NoNewline -Encoding ascii
 
       - uses: actions/upload-artifact@v4
         with:
           name: XboxSteamSync-windows-x64
-          path: dist/XboxSteamSync-windows-x64.zip
+          path: |
+            dist/XboxSteamSync-windows-x64.zip
+            dist/XboxSteamSync-windows-x64.zip.sha256
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
@@ -51,5 +59,6 @@ jobs:
         with:
           files: |
             dist/XboxSteamSync-windows-x64.zip
+            dist/XboxSteamSync-windows-x64.zip.sha256
             install.ps1
           generate_release_notes: true

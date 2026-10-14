@@ -59,6 +59,7 @@ xss sync             # add/remove shortcuts (closes and reopens Steam only if so
 xss doctor           # check Steam, SISR, VIIPER, the USBIP driver and the Xbox folders
 xss game --list      # show each game's input mode
 xss game "<name>" --input keyboard-mouse   # or controller; see below
+xss update           # update XboxSteamSync now (it also updates itself; see below)
 xss uninstall        # remove everything XboxSteamSync added to Steam
 ```
 
@@ -84,8 +85,25 @@ switches back. `xss sync` and `xss doctor` show each game's mode.
 
 ## Update
 
-Run the install command again. It won't update while a game started from the Xbox collection
-is running, because that keeps the install folder in use.
+XboxSteamSync updates itself. `xss sync`, `xss doctor` and `xss setup` check GitHub for a new
+release at most once a day. When there is one, they download it, check it against the
+release's SHA-256 checksum, and install it once the command finishes; the next run uses the new
+version. Game launches never check, so they stay fast and work offline. If there's no network,
+the check is skipped and the command carries on.
+
+An update waits while a game started from the Xbox collection is running, because that keeps the
+install folder in use; it's installed on a later run instead.
+
+```powershell
+xss update           # update now
+xss update --check   # only say whether a new version exists
+```
+
+To turn automatic updates off, set `"auto_update": false` in `config.json`. Running the install
+command again also updates. Update attempts are logged to `logs\update.log`.
+
+If an update changes what the Steam shortcuts contain, the next `xss sync` updates them, and
+`xss doctor` reminds you to run it.
 
 ## Uninstall
 
@@ -114,6 +132,7 @@ Optional. Create `%LOCALAPPDATA%\XboxSteamSync\config.json` (see
 | `steamgriddb_ids` | `{ "<folder name>": <SteamGridDB game id> }` when the name search picks the wrong game |
 | `sisr_path` / `sisr_args` | SISR executable and its arguments (default `%LOCALAPPDATA%\SISR\SISR.exe`, `--window.show --window.fullscreen`). Set `sisr_path` to `""` to launch games without SISR. |
 | `games` | Per-game settings, keyed by install folder, package or display name. `"input"` is `"controller"` (the default) or `"keyboard-mouse"` (see [Mouse-and-keyboard games](#mouse-and-keyboard-games)); `xss game` sets it for you. |
+| `auto_update` | Check for and install new versions once a day (default `true`; see [Update](#update)) |
 
 SISR settings and input modes are read each time a game starts, so changing them doesn't need
 a sync. Other changes take effect on the next `xss sync`.
@@ -171,7 +190,13 @@ uv run pyinstaller --noconfirm packaging/xss.spec   # build to dist\XboxSteamSyn
 Set `XSS_HOME` to use a different data folder than `%LOCALAPPDATA%\XboxSteamSync`.
 
 Pushing a `v*` tag that matches `__version__` in `xboxsteamsync/__init__.py` builds the zip on
-GitHub Actions and attaches it and `install.ps1` to a GitHub Release.
+GitHub Actions and attaches it, its `.sha256` file and `install.ps1` to a GitHub Release. The zip
+also contains `install.ps1`; that's the copy `xss update` runs. Installed copies update to the
+new release on their next daily check.
+
+When a release changes what Steam shortcuts contain (launch options or target), set
+`SHORTCUTS_CHANGED_IN` in `xboxsteamsync/update.py` to its version, so `xss doctor` tells users
+whose shortcuts are older to run `xss sync`.
 
 To move to a new SISR release, test it, then update `INSTALL_VERSION`, `INSTALL_SCRIPT_SHA256`
 and `TESTED_VERSIONS` in `xboxsteamsync/sisr.py`.

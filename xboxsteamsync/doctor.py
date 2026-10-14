@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from xboxsteamsync import paths, sisr, steam
+from xboxsteamsync import __version__, paths, sisr, steam, update
 from xboxsteamsync.config import load_config
 from xboxsteamsync.games import game_input_mode, invalid_settings, unknown_settings
 from xboxsteamsync.sync import is_legacy, managed_aumid
@@ -57,6 +57,10 @@ def _check_steam():
     if legacy or stale:
         checks.append(Check("Steam shortcuts", WARN,
                             f"{legacy + stale} shortcut(s) point at an old or moved launcher",
+                            "Run `xss sync`"))
+    elif users and (last := update.resync_needed()):
+        checks.append(Check("Steam shortcuts", WARN,
+                            f"last synced by v{last}; v{update.SHORTCUTS_CHANGED_IN} changed them",
                             "Run `xss sync`"))
     return checks, steam_path
 
@@ -136,6 +140,18 @@ def _check_xbox(cfg):
     return checks
 
 
+def _check_version(cfg):
+    state = update.load_state()
+    latest = state.get("latest")
+    if latest and update.is_newer(latest):
+        if update.started == latest:
+            return [Check("XboxSteamSync", OK, f"v{__version__}; installing {latest} when this command finishes "
+                                               f"(see {update.LOG_PATH})")]
+        return [Check("XboxSteamSync", WARN, f"v{__version__}; {latest} is available", "Run `xss update`")]
+    off = "" if cfg.get("auto_update", True) else " (automatic updates are off)"
+    return [Check("XboxSteamSync", OK, f"v{__version__}{off}")]
+
+
 def _check_install():
     launcher = paths.launcher_exe()
     if not launcher.exists():
@@ -152,7 +168,7 @@ def collect():
     except Exception as e:
         return [Check("config.json", FAIL, f"{paths.CONFIG_PATH}: {e}", "Fix or delete the file")]
     steam_checks, _ = _check_steam()
-    return [*_check_install(), *steam_checks, *_check_sisr(cfg), *_check_viiper(), *_check_usbip(),
+    return [*_check_version(cfg), *_check_install(), *steam_checks, *_check_sisr(cfg), *_check_viiper(), *_check_usbip(),
             *_check_xbox(cfg)]
 
 

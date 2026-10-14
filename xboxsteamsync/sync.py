@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from xboxsteamsync import artwork, paths, steam
+from xboxsteamsync import artwork, paths, steam, update
 from xboxsteamsync.config import load_config
 from xboxsteamsync.games import game_input_mode
 from xboxsteamsync.xbox_games import find_games, gaming_roots
@@ -227,6 +227,7 @@ def run_sync(dry_run=False, restart_steam=False) -> int:
 
     was_running = steam.is_running()
     if not changed:
+        update.record_sync()
         print("\nSteam is already up to date.")
         if restart_steam and was_running:
             print("Restarting Steam...")
@@ -245,6 +246,7 @@ def run_sync(dry_run=False, restart_steam=False) -> int:
         if plan.changed:
             apply_plan(plan, cfg, art_state, backup_root)
     art_state.save()
+    update.record_sync()
     print(f"Backed up the previous Steam files to {backup_root}")
 
     if was_running:

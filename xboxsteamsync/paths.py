@@ -2,8 +2,8 @@
 
     %LOCALAPPDATA%\\XboxSteamSync\\          data that survives updates
         app\\                               the build (xss.exe, xss-launch.exe); replaced on update
-        config.json, art_state.json, setup_state.json
-        logs\\, backups\\
+        config.json, art_state.json, setup_state.json, update_state.json
+        logs\\, backups\\, updates\\
 
 XSS_HOME overrides the data folder (useful for development and tests).
 """
@@ -13,14 +13,17 @@ import sys
 from pathlib import Path
 
 LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+CUSTOM_HOME = bool(os.environ.get("XSS_HOME"))
 DATA_DIR = Path(os.environ.get("XSS_HOME") or LOCALAPPDATA / "XboxSteamSync")
 APP_DIR = DATA_DIR / "app"
 
 CONFIG_PATH = DATA_DIR / "config.json"
 ART_STATE_PATH = DATA_DIR / "art_state.json"
 SETUP_STATE_PATH = DATA_DIR / "setup_state.json"
+UPDATE_STATE_PATH = DATA_DIR / "update_state.json"
 LOG_DIR = DATA_DIR / "logs"
 BACKUP_DIR = DATA_DIR / "backups"
+UPDATES_DIR = DATA_DIR / "updates"  # downloaded release waiting to be installed
 
 LAUNCHER_NAME = "xss-launch.exe"
 

@@ -7,12 +7,13 @@
 
 param(
     [string]$Zip = "",
-    [switch]$NoSetup,   # just install; don't run `xss setup`
-    [switch]$NoPath     # don't add the install folder to the user's PATH
+    [switch]$NoSetup,      # just install; don't run `xss setup`
+    [switch]$NoPath,       # don't add the install folder to the user's PATH
+    [int]$WaitForPid = 0   # wait for this process to exit first (xss.exe updating itself)
 )
 
 function Install-XboxSteamSync {
-    param([string]$Zip, [switch]$NoSetup, [switch]$NoPath)
+    param([string]$Zip, [switch]$NoSetup, [switch]$NoPath, [int]$WaitForPid)
 
     $ErrorActionPreference = "Stop"
     $ProgressPreference = "SilentlyContinue"  # Invoke-WebRequest is much slower with the progress bar
@@ -21,6 +22,15 @@ function Install-XboxSteamSync {
     $asset = "XboxSteamSync-windows-x64.zip"
     $root = Join-Path $env:LOCALAPPDATA "XboxSteamSync"
     $app = Join-Path $root "app"
+
+    if ($WaitForPid) {
+        Write-Host "$(Get-Date -Format s) Waiting for process $WaitForPid to exit before updating"
+        $proc = Get-Process -Id $WaitForPid -ErrorAction SilentlyContinue
+        if ($proc -and -not $proc.WaitForExit(3600 * 1000)) {
+            Write-Host "Process $WaitForPid is still running after an hour; not updating." -ForegroundColor Red
+            return
+        }
+    }
 
     # xss-launch.exe runs for as long as a game it started is running, and keeps the
     # install folder locked meanwhile.
@@ -80,4 +90,4 @@ function Install-XboxSteamSync {
     }
 }
 
-Install-XboxSteamSync -Zip $Zip -NoSetup:$NoSetup -NoPath:$NoPath
+Install-XboxSteamSync -Zip $Zip -NoSetup:$NoSetup -NoPath:$NoPath -WaitForPid $WaitForPid

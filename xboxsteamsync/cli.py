@@ -28,12 +28,21 @@ def main(argv=None) -> int:
     p.add_argument("--input", choices=INPUT_MODES, help="set the game's input mode")
     p.add_argument("--list", action="store_true", help="show every installed game's input mode")
 
+    p = sub.add_parser("update", help="update XboxSteamSync to the latest release now")
+    p.add_argument("--check", action="store_true", help="only report whether a new version exists")
+
     p = sub.add_parser("uninstall", help="remove our shortcuts, collection entries, artwork and settings from Steam")
     p.add_argument("--dry-run", action="store_true", help="show what would be removed")
     p.add_argument("--purge", action="store_true", help=f"also delete {paths.DATA_DIR} (program, settings, logs)")
 
     args = parser.parse_args(argv)
     try:
+        if args.command in ("sync", "doctor", "setup") and not getattr(args, "dry_run", False):
+            from xboxsteamsync.update import auto_update
+            auto_update()
+        if args.command == "update":
+            from xboxsteamsync.update import run_update
+            return run_update(check_only=args.check)
         if args.command == "sync":
             from xboxsteamsync.sync import run_sync
             return run_sync(dry_run=args.dry_run)

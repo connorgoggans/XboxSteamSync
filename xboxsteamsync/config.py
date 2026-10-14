@@ -16,6 +16,8 @@ DEFAULT_CONFIG = {
     "sisr_args": ["--window.show", "--window.fullscreen"],
     # Per-game settings, e.g. {"<folder name>": {"input": "keyboard-mouse"}}.
     "games": {},
+    # Check for a new release once a day and install it.
+    "auto_update": True,
 }
 
 CONTROLLER, KEYBOARD_MOUSE = "controller", "keyboard-mouse"
