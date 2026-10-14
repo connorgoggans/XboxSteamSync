@@ -14,6 +14,7 @@ from pathlib import Path
 
 from xboxsteamsync import artwork, paths, steam
 from xboxsteamsync.config import load_config
+from xboxsteamsync.games import game_input_mode
 from xboxsteamsync.xbox_games import find_games, gaming_roots
 
 AUMID_RE = re.compile(r"--aumid (\S+)")
@@ -202,7 +203,7 @@ def run_sync(dry_run=False, restart_steam=False) -> int:
     games = find_games(roots, cfg["exclude"])
     print(f"Found {len(games)} installed Xbox games in {', '.join(map(str, roots)) or 'no folders'}:")
     for g in games:
-        print(f"  {g.name}  [{g.aumid}]")
+        print(f"  {g.name}  [{g.aumid}]  input: {game_input_mode(cfg, g)}")
 
     sgdb = artwork.SteamGridDB(cfg["steamgriddb_api_key"]) if cfg["steamgriddb_api_key"] else None
     if not sgdb and not dry_run:

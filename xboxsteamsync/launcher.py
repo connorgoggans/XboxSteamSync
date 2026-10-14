@@ -12,8 +12,9 @@ isn't in the process tree Steam launched). Instead this wrapper:
 
 Usage: xss-launch --aumid <PFN!AppId> --dir <dir> [--dir <dir>...] [--exe <name>...]
 
-SISR's path and arguments come from config.json at launch time, so changing them
-doesn't need a re-sync.
+SISR's path and arguments, and the game's input mode, come from config.json at launch
+time, so changing them doesn't need a re-sync. In keyboard-mouse mode SISR isn't started:
+Steam Input then sends keyboard and mouse input from this shortcut's layout itself.
 """
 
 import argparse
@@ -28,7 +29,8 @@ from pathlib import Path
 import psutil
 
 from xboxsteamsync import paths
-from xboxsteamsync.config import load_config
+from xboxsteamsync.config import KEYBOARD_MOUSE, input_mode, load_config
+from xboxsteamsync.xbox_games import read_game_config
 
 STARTUP_TIMEOUT = 180  # seconds to wait for the game to appear
 HANDOFF_GRACE = 15     # seconds with no game process before we consider it exited
@@ -111,12 +113,31 @@ def _stop(proc: subprocess.Popen):
         proc.kill()
 
 
-def main():
+def game_keys(aumid, dirs):
+    """(folder, package name, display name) of the game, to look up its settings.
+
+    The shortcut only passes the AUMID and install folders, so the folder name comes
+    from the Content dir and the display name from its MicrosoftGame.config.
+    """
+    identity = aumid.split("!", 1)[0].rsplit("_", 1)[0]
+    for d in dirs:
+        config_path = Path(d) / "MicrosoftGame.config"
+        if not config_path.exists():
+            continue
+        try:
+            info = read_game_config(config_path)
+        except Exception:
+            info = None
+        return config_path.parent.parent.name, identity, (info.name or "") if info else ""
+    return "", identity, ""
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--aumid", required=True)
     parser.add_argument("--dir", action="append", default=[], help="install dir(s) the game's processes run from")
     parser.add_argument("--exe", action="append", default=[], help="game executable name(s)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(filename=LOG_PATH, level=logging.INFO, encoding="utf-8",
@@ -129,12 +150,16 @@ def main():
         log.error("could not read %s: %s; using defaults", paths.CONFIG_PATH, e)
         cfg = load_config(read_file=False)
     sisr_path, sisr_args = cfg["sisr_path"], cfg["sisr_args"]
+    mode = input_mode(cfg, *game_keys(args.aumid, args.dir))
+    log.info("input mode: %s", mode)
 
     prefixes = tuple(os.path.normcase(os.path.abspath(d)).rstrip("\\") + "\\" for d in args.dir if d)
     exe_names = {e.lower() for e in args.exe}
 
     sisr = None
-    if sisr_path and Path(sisr_path).exists():
+    if mode == KEYBOARD_MOUSE:
+        log.info("not starting SISR; Steam Input sends keyboard and mouse input")
+    elif sisr_path and Path(sisr_path).exists():
         sisr_log = LOG_PATH.with_name("sisr.log")
         sisr = subprocess.Popen([sisr_path, *sisr_args, f"--log.file={sisr_log}"])
         log.info("started SISR pid=%s args=%s", sisr.pid, sisr_args)

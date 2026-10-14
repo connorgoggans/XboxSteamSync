@@ -57,11 +57,30 @@ XboxSteamSync, runs it, and then checks that `SISR.exe` is signed by its author.
 xss sync --dry-run   # show what would change
 xss sync             # add/remove shortcuts (closes and reopens Steam only if something changed)
 xss doctor           # check Steam, SISR, VIIPER, the USBIP driver and the Xbox folders
+xss game --list      # show each game's input mode
+xss game "<name>" --input keyboard-mouse   # or controller; see below
 xss uninstall        # remove everything XboxSteamSync added to Steam
 ```
 
 Each sync that changes something first backs up the Steam files it edits to
 `%LOCALAPPDATA%\XboxSteamSync\backups\<timestamp>\`.
+
+## Mouse-and-keyboard games
+
+By default every game gets a virtual Xbox controller from SISR. Games that only support mouse
+and keyboard, or handle a controller badly, can use Steam Input's keyboard and mouse output
+instead:
+
+1. Run `xss game "<name>" --input keyboard-mouse`. The name can be the game's display name,
+   package name or install folder name, or part of one (`xss game mythology ...`). This
+   doesn't need a sync or a Steam restart.
+2. In Steam, open the game's shortcut, go to its controller settings, and pick a keyboard-and-mouse
+   layout, such as **Keyboard (WASD) and Mouse**. XboxSteamSync can't choose the layout for
+   you; Steam keeps that choice in its own cloud-synced settings.
+
+The shortcut then starts the game without SISR, and Steam turns your controller into keyboard
+and mouse input from that layout while the game runs. `xss game "<name>" --input controller`
+switches back. `xss sync` and `xss doctor` show each game's mode.
 
 ## Update
 
@@ -94,9 +113,20 @@ Optional. Create `%LOCALAPPDATA%\XboxSteamSync\config.json` (see
 | `exclude` | Folder names, package names or display names to skip |
 | `steamgriddb_ids` | `{ "<folder name>": <SteamGridDB game id> }` when the name search picks the wrong game |
 | `sisr_path` / `sisr_args` | SISR executable and its arguments (default `%LOCALAPPDATA%\SISR\SISR.exe`, `--window.show --window.fullscreen`). Set `sisr_path` to `""` to launch games without SISR. |
+| `games` | Per-game settings, keyed by install folder, package or display name. `"input"` is `"controller"` (the default) or `"keyboard-mouse"` (see [Mouse-and-keyboard games](#mouse-and-keyboard-games)); `xss game` sets it for you. |
 
-SISR settings are read each time a game starts, so changing them doesn't need a sync. Other
-changes take effect on the next `xss sync`.
+SISR settings and input modes are read each time a game starts, so changing them doesn't need
+a sync. Other changes take effect on the next `xss sync`.
+
+For example:
+
+```json
+{
+  "games": {
+    "Age of Mythology- Retold Standard Edition": { "input": "keyboard-mouse" }
+  }
+}
+```
 
 ## How it works
 
@@ -104,11 +134,13 @@ changes take effect on the next `xss sync`.
   is a game when `Content\MicrosoftGame.config` has an `<ExecutableList>`. DLC has none and
   declares a `MainPackageDependency`. Folders like `GameSave` have no config.
 - **Launching:** shortcuts run `xss-launch.exe`, which:
-  1. starts SISR under the shortcut's Steam Input layout;
+  1. starts SISR under the shortcut's Steam Input layout (not for `keyboard-mouse` games);
   2. launches the game through `shell:AppsFolder\<AppID>`;
   3. waits while the game runs (watching its install folders and executable names), so Steam
      keeps the layout active;
   4. closes SISR when the game exits, or if the launcher itself is closed.
+
+  Staying alive is also what keeps Steam Input active for `keyboard-mouse` games.
 
   Steam Input is also turned on for each shortcut in `localconfig.vdf`. Logs are in
   `%LOCALAPPDATA%\XboxSteamSync\logs` (`launcher.log`, `sisr.log`).
@@ -124,8 +156,6 @@ changes take effect on the next `xss sync`.
 - **Minecraft: Java Edition:** the Xbox entry opens the Minecraft Launcher, and Java runs from
   outside the install folder, so the launcher may think the game has exited and close SISR
   mid-game. Check `logs\launcher.log`.
-- **Mouse-and-keyboard games** still get a virtual Xbox controller; you may want a different
-  Steam Input layout for those.
 
 ## Development
 

@@ -4,6 +4,7 @@ import argparse
 import sys
 
 from xboxsteamsync import __version__, paths
+from xboxsteamsync.config import INPUT_MODES
 
 
 def main(argv=None) -> int:
@@ -22,6 +23,11 @@ def main(argv=None) -> int:
     p.add_argument("--yes", "-y", action="store_true", help="don't ask before installing")
     p.add_argument("--resume", action="store_true", help=argparse.SUPPRESS)
 
+    p = sub.add_parser("game", help="show or set a game's input mode (controller or keyboard-mouse)")
+    p.add_argument("name", nargs="?", help="folder, package or display name of an installed Xbox game")
+    p.add_argument("--input", choices=INPUT_MODES, help="set the game's input mode")
+    p.add_argument("--list", action="store_true", help="show every installed game's input mode")
+
     p = sub.add_parser("uninstall", help="remove our shortcuts, collection entries, artwork and settings from Steam")
     p.add_argument("--dry-run", action="store_true", help="show what would be removed")
     p.add_argument("--purge", action="store_true", help=f"also delete {paths.DATA_DIR} (program, settings, logs)")
@@ -37,6 +43,13 @@ def main(argv=None) -> int:
         if args.command == "setup":
             from xboxsteamsync.setup import run_setup
             return run_setup(resume=args.resume, assume_yes=args.yes)
+        if args.command == "game":
+            if args.list and (args.name or args.input):
+                parser.error("--list can't be combined with a game name or --input")
+            if args.input and not args.name:
+                parser.error("--input needs a game name")
+            from xboxsteamsync.games import run_game
+            return run_game(None if args.list else args.name, args.input)
         if args.command == "uninstall":
             from xboxsteamsync.uninstall import run_uninstall
             return run_uninstall(dry_run=args.dry_run, purge=args.purge)

@@ -1,10 +1,11 @@
 """`xss doctor`: check everything XboxSteamSync depends on."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from xboxsteamsync import paths, sisr, steam
 from xboxsteamsync.config import load_config
+from xboxsteamsync.games import game_input_mode, invalid_settings, unknown_settings
 from xboxsteamsync.sync import is_legacy, managed_aumid
 from xboxsteamsync.xbox_games import find_games, gaming_roots
 
@@ -18,6 +19,7 @@ class Check:
     status: str
     detail: str
     fix: str = ""
+    lines: list = field(default_factory=list)  # extra detail, one per line
 
 
 def _check_steam():
@@ -124,7 +126,13 @@ def _check_xbox(cfg):
         games = find_games(roots, cfg["exclude"])
     except Exception as e:
         return checks + [Check("Xbox games", FAIL, f"couldn't list games: {e}")]
-    checks.append(Check("Xbox games", OK if games else WARN, f"{len(games)} installed"))
+    lines = [f"{g.name}  ({game_input_mode(cfg, g)})" for g in sorted(games, key=lambda g: g.name.lower())]
+    checks.append(Check("Xbox games", OK if games else WARN, f"{len(games)} installed", lines=lines))
+    problems = [f"{k}: unknown input {v!r}" for k, v in invalid_settings(cfg).items()]
+    problems += [f"{k}: no installed game matches it" for k in unknown_settings(cfg, games)]
+    if problems:
+        checks.append(Check("Game settings", WARN, "; ".join(problems),
+                            f"Fix `games` in {paths.CONFIG_PATH}, or use `xss game`"))
     return checks
 
 
@@ -153,6 +161,8 @@ def run_doctor() -> int:
     width = max(len(c.name) for c in checks)
     for c in checks:
         print(f"{_MARK[c.status]} {c.name:<{width}}  {c.detail}")
+        for line in c.lines:
+            print(f"       {'':<{width}}    {line}")
         if c.fix and c.status != OK:
             print(f"       {'':<{width}}  -> {c.fix}")
     failed = sum(c.status == FAIL for c in checks)
