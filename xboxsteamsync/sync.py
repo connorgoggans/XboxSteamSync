@@ -265,7 +265,7 @@ def _print_games(cfg, detections, states):
             where = detection.detail or "no folders"
             print(f"Found {len(found)} installed Xbox games in {where}:")
         elif detection.found:
-            print(f"Found {len(found)} installed {label} games:")
+            print(f"Found {len(found)} installed games from {label}:")
         else:
             continue
         for g in found:

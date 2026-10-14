@@ -42,7 +42,7 @@ SETTLE = 20            # seconds a game process must run before the game counts 
 HANDOFF_GRACE = 15     # seconds with no game process before we consider it exited
 SISR_WARMUP = 3        # seconds for SISR to create its virtual controller before the game starts
 POLL_INTERVAL = 2
-BATTLENET_RESEND = 30  # seconds before asking Battle.net to launch the game again
+BATTLENET_RESEND = 10  # seconds before asking Battle.net to launch the game again
 
 LOG_PATH = paths.LOG_DIR / "launcher.log"
 
@@ -164,8 +164,10 @@ class BattlenetLaunch:
     """`Battle.net.exe --exec="launch <code>"`, sent once Battle.net is up.
 
     Battle.net drops --exec while it's starting, so if it isn't running we start it and
-    send the command once its main window shows (or after BATTLENET_RESEND seconds). Until
-    the game appears, the command is sent again every BATTLENET_RESEND seconds.
+    send the command once its main window shows (or after BATTLENET_RESEND seconds). The
+    window can show before Battle.net takes commands, and a launch sent just after the game
+    closed can be ignored too, so until the game appears the command is sent again every
+    BATTLENET_RESEND seconds.
     """
 
     def __init__(self, code, log):
