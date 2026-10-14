@@ -1,6 +1,6 @@
 # Install or update XboxSteamSync, then run its setup.
 #
-#   irm https://github.com/OWNER/XboxSteamSync/releases/latest/download/install.ps1 | iex
+#   irm https://github.com/connorgoggans/XboxSteamSync/releases/latest/download/install.ps1 | iex
 #
 # Or, from a downloaded release zip:
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Zip .\XboxSteamSync-windows-x64.zip
@@ -17,7 +17,7 @@ function Install-XboxSteamSync {
     $ErrorActionPreference = "Stop"
     $ProgressPreference = "SilentlyContinue"  # Invoke-WebRequest is much slower with the progress bar
 
-    $repo = "OWNER/XboxSteamSync"
+    $repo = "connorgoggans/XboxSteamSync"
     $asset = "XboxSteamSync-windows-x64.zip"
     $root = Join-Path $env:LOCALAPPDATA "XboxSteamSync"
     $app = Join-Path $root "app"

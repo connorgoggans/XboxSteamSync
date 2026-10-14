@@ -17,7 +17,7 @@ least one game installed. You don't need Python.
 Open PowerShell and run:
 
 ```powershell
-irm https://github.com/OWNER/XboxSteamSync/releases/latest/download/install.ps1 | iex
+irm https://github.com/connorgoggans/XboxSteamSync/releases/latest/download/install.ps1 | iex
 ```
 
 This installs XboxSteamSync to `%LOCALAPPDATA%\XboxSteamSync\app`, adds it to your PATH as
